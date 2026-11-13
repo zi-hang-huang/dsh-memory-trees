@@ -1,0 +1,45 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # engines 要求 >=22.13.0；只测两个当前 LTS/Current 主版本
+        node: ["22", "24"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      # 本项目没有任何运行时/开发依赖（package.json 无 dependencies，
+      # 宿主依赖全部走 peerDependencies，测试仅 import node: 内置模块），
+      # 因此不需要 npm ci / npm install，也没有 lockfile 可锁。
+      - name: Show runtime
+        run: |
+          node --version
+          npm --version
+
+      - name: Run test suite
+        run: npm test
+
+      # 说明：test/ltm-domain.test.js 有意借宿主 profile 里的真实 zod 与
+      # @deepseek-ai/dsh-storage-domain 做契约验证；CI 上没有 DSH profile 时，
+      # 这几条会自行 skip（4 条），其余全部照跑。这是设计行为，不是失败。
+      - name: Note on skipped ltm-domain cases
+        run: echo "ltm-domain real-dependency cases skip on CI by design (no DSH profile)."

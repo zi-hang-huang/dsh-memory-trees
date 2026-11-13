@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### Added — CI 工作流（GitHub Actions）
+
+- **新增 `.github/workflows/test.yml`**：push / PR 到 `main` 及手动触发时，在 `ubuntu-latest` 上以 Node **22 与 24** 双版本跑 `npm test`（矩阵，`fail-fast: false`）。
+- **不装依赖、不锁版本**：本项目 `package.json` 无 `dependencies`/`devDependencies`，宿主依赖全在 `peerDependencies`，且全部测试仅 `import` `node:` 内置模块与仓库内相对路径，故工作流**不执行 `npm ci`/`npm install`**（仓库亦无 lockfile）。少一步、少一处失败面。
+- **跳过是设计行为，不是失败**：`test/ltm-domain.test.js` 有意借宿主 profile 的真实 `zod` 与 `@deepseek-ai/dsh-storage-domain` 做契约验证；CI 上无 DSH profile，该文件 4 条会自动 skip（`t.skip`），其余照跑。**离线实测**：在无 `~/.dsh` 的空 HOME 下 `npm test` = 429 项 / **425 通过 / 0 失败 / 4 跳过**，**退出码 0**，与 GitHub runner 预期一致。
+- README 顶部加 CI 徽章，直观反映 `main` 的健康状态。
+
 ### Changed — 发布工程收尾（不发版，仅整备）
 
 - **发布包剔除备份文件**：`files` 白名单含 `lib/`，npm 规定白名单内无法用 `.npmignore` 排除，故 `lib/` 下三个 `.bak-v11`（`client.js.bak-v11` / `index.js.bak-v11` / `ltm-view.js.bak-v11`，合计 120KB）会被打进 tarball。已移出 `lib/` 至仓库根 `_archive/`（代码无任何引用）。`npm pack --dry-run`：**32 文件 / 193KB → 29 文件 / 156KB**，包内 0 个备份文件。

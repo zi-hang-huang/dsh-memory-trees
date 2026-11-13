@@ -1,5 +1,7 @@
 # dsh-memory
 
+[![test](https://github.com/zi-hang-huang/dsh-memory-trees/actions/workflows/test.yml/badge.svg)](https://github.com/zi-hang-huang/dsh-memory-trees/actions/workflows/test.yml)
+
 把 DSH 会话历史按 token 预算折叠成记忆节点，再用一条 `user/message` 替换被折叠的区间。模型每步看到的是
 
 ```
