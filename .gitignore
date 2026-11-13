@@ -1,0 +1,22 @@
+# 依赖
+node_modules/
+
+# 备份/临时文件（工作区自己的版本快照，不入库）
+*.bak
+*.bak-*
+*.bak.*
+*.orig
+*.tmp
+*.log
+*.tsbuildinfo
+
+# 构建中间产物（tsdown 缓存）
+.tsdown/
+dist/
+
+# 系统杂物
+Thumbs.db
+.DS_Store
+
+# �������
+*.tgz

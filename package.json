@@ -1,0 +1,67 @@
+{
+  "name": "dsh-memory",
+  "version": "0.3.0",
+  "description": "DeepSeek Harness 记忆架构：短期记忆 / 长期记忆 / 自我认知三棵记忆树，以 surface 折叠驱动上下文。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./fold": "./lib/fold.js",
+    "./tree": "./lib/tree.js",
+    "./promote": "./lib/promote.js",
+    "./promote-runner": "./lib/promote-runner.js",
+    "./subject": "./lib/subject.js",
+    "./ltm-domain": "./lib/ltm-domain.js",
+    "./ltm-store": "./lib/ltm-store.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "cordis.patch.yml",
+    "lib/"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-ui-sidebar-right",
+        "@deepseek-ai/dsh-client-modules"
+      ],
+      "platform": "web"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-session": ">=0.2.1-rc.2",
+    "@deepseek-ai/dsh-tools": ">=0.2.1-rc.2",
+    "@deepseek-ai/schemastery": ">=3.18.4",
+    "@deepseek-ai/dsh-storage-domain": ">=0.2.1-rc.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "zod": ">=3.22.0"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "memory"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zi-hang-huang/dsh-memory-trees.git"
+  },
+  "homepage": "https://github.com/zi-hang-huang/dsh-memory-trees#readme",
+  "bugs": {
+    "url": "https://github.com/zi-hang-huang/dsh-memory-trees/issues"
+  },
+  "author": "zi-hang-huang",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "build:client": "tsdown"
+  }
+}

@@ -1,0 +1,19 @@
+# 发布排除项：备份/临时文件绝不打进 tarball
+*.bak
+*.bak-*
+*.bak.*
+*.orig
+*.tmp
+*.log
+*.tsbuildinfo
+
+# 源码与构建输入不进发布包（只发编译产物 lib/）
+src/
+test/
+tsdown.config.*
+*.md
+!CHANGELOG.md
+!README.md
+
+# �������
+*.tgz

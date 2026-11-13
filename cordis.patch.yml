@@ -1,0 +1,150 @@
+# dsh-memory — insert the plugin with the v1 budgets.
+#
+# Every field below is required: the plugin's Config is schemastery with
+# `.required()` on each key, so an omitted budget fails the load loudly instead of
+# defaulting to something wrong. The numbers are the v0-measured ones, not guesses —
+# see `dsh-memory-plan.md` §8 P5 and `v0-findings.md`.
+- insert:
+    - id: dsh-memory
+      name: dsh-memory
+      config:
+        # Verbatim tail, in tokens. The single budget a user should tune.
+        #
+        # 2026-11-02 状态：评测模式 12000（生产模式目标 20000，见 HANDOFF §6.0）。
+        #
+        # 收敛条件（实测，按 step 粒度）：retainTokens 必须大于
+        #     屏障 + 树 + 单步新增内容
+        # 否则折完仍然超预算，下一个 pre-step 接着折。一个 `skill-catalog` 屏障约
+        # 9,560 tok 且永不可折，所以单屏障会话的下限约 12k，六份目录的会话约 57k。
+        # 单纯调大树或调小树都改不了折叠次数，只能改每次折叠的代价。
+        retainTokens: 12000
+
+        # Volatile (short-term) zone. Plan D6b strategy C: the only cap that held P95
+        # inside budget without ever dropping the human's own words.
+        #
+        # 2026-11-02: 1500 -> 5000 -> 2500。中间那次是因为树比窗口便宜（surface +11%
+        # 换来 ~3x 节点）；回落到 2500 不是因为贵，而是因为实测发现 5000 与 2500 的
+        # 折叠次数完全相同（41 vs 41，410 vs 410），只影响每次折叠的体积。
+        volatileBudget: 2500
+
+        # Refuse to fold fewer nodes than this, so a fold always replaces something
+        # larger than the checkpoint it writes.
+        minNodesToFold: 2
+
+        # 同一个 turn 最多折叠一次。折叠按 step 评估，一个长 turn（连续追加工具结果）
+        # 每步都会重新越过 retainTokens，实测同一 turn 连折 19 次、材料长度始终
+        # 4.4k–5.6k 字符不缩短，等于反复蒸馏同一批内容。设为 1 后该 turn 只折一次，
+        # 后续 step 计入 skipped.cooldown。设为 0 恢复按 step 折叠的旧行为。
+        foldMinTurnGap: 1
+
+        # What may become memory. Anything unlisted is dropped — including a future
+        # plugin's injections — because the failure mode must be "nothing recorded"
+        # rather than "a 10k-token payload pinned into the persona forever".
+        admitKinds:
+          - user
+          - agent-message
+          - goal
+
+        # What a fold must never hide. Only injections that decide whether to
+        # re-publish by reading `session.surface.nodes` belong here. `memory:self` is
+        # deliberately absent: this plugin republishes that one itself.
+        barrierKinds:
+          - skill-catalog
+          - agent-instructions
+
+        # How much of each barrier kind to pin.
+        #
+        # "newest" (2026-11-02): only the newest visible copy of each kind is
+        # un-foldable; older copies are stale duplicates and get folded like ordinary
+        # content. Safe because the surface-aware plugins dedup by scanning backwards
+        # for the newest *visible* copy — which is exactly the one left in place.
+        # Measured on a 6-catalog session: surface 86,916 -> 33,432 (-61.5%), fold
+        # count unchanged (410 -> 411), zero extra tokens. "all" restores the old
+        # behaviour in one line.
+        barrierPolicy: newest
+
+        # Where memory nodes come from.
+        #
+        # "rules" (v1): deterministic excerpting — 120-char title plus the first 600
+        # characters of each message. Cheap, predictable, and lossy in exactly the way
+        # a user notices (a long reply survives folding as its opening paragraph).
+        # "llm" (v2): ask the routed model to distil the range, then validate its
+        # answer against the node schema. Falls back to rules on any failure — a fold
+        # that does not happen means the context grows unbounded, which is worse than
+        # a coarse summary.
+        distillPolicy: rules
+
+        # Minimum shadowed tokens before the model is asked.
+        #
+        # Folding runs in `agent/pre-step`, so it fires about once per step (measured:
+        # 41 folds in a 20-turn session, 410 in a 40-turn one; median span ~1-5k
+        # tokens). Asking a model on every fold would roughly double the request count
+        # to summarise a kilobyte. 4000 keeps the model for folds that carry history.
+        llmMinSpan: 4000
+
+        # Node ceiling, input ceiling and wall-clock ceiling for one distillation.
+        #
+        # `llmMaxInputTokens` matters more than it looks: a fold can shadow tens of
+        # thousands of tokens, and sending all of it back to a model costs more than
+        # the fold saves. Over budget the transcript keeps its head and tail (task and
+        # outcome) and drops the middle.
+        llmMaxNodes: 8
+        llmMaxInputTokens: 12000
+        llmTimeoutMs: 20000
+
+        # Publish the self tree as a `memory:self` message at the tail of the surface.
+        selfEnabled: true
+
+        # --- v4 recall -------------------------------------------------------
+        #
+        # Local BM25 over character bigrams. No model call, no vector index, no
+        # dependency — measured at 0.049 ms per query on 500 records. The store holds
+        # exact identifiers ("retainTokens is 15000", "--test-concurrency=1"), which is
+        # where a lexical match beats a semantic one.
+        #
+        # `recallEnabled` gates BOTH the pre-step block and the `memory_recall` tool, so
+        # the switch cannot leave one of them on.
+        #
+        # HONEST LIMIT: character bigrams do not match paraphrases. 「保留」 and 「保存」
+        # share a character but no bigram, so they do not match. Direction is
+        # "miss, never over-match" — a wrongly recalled memory arrives looking
+        # authoritative, which is worse than silence.
+        #
+        # 2026-11-06: pre-step wiring now reads the LTM store directly (readSearchableRecords
+        # → recall), so a NEW session recalls across sessions even with an empty event log.
+        # The session-log pass (below, `sessionRecallEnabled`) is a second, independent
+        # source that adds this-session raw snippets on top. Both are gated by `recallEnabled`.
+        recallEnabled: true
+
+        # Token ceiling for the rendered block. D12 puts the recall zone at <= 1200.
+        # This is an INDEPENDENT budget: it does not come out of `retainTokens`, because
+        # the measured floor there is already 147k of unfolded fixed cost (HANDOFF §5.9).
+        recallBudget: 1200
+
+        # Candidates ranked before the budget trim. Rank more than you show, so the
+        # budget trim removes the weakest rather than the untried.
+        recallTopK: 5
+
+        # Family-expansion cap: records sharing a `subject` namespace are pulled in
+        # even when the query did not match them. One hop only; 0 disables.
+        # (This stands in for "graph expansion": toLtmRecord flattens parentId, so LTM
+        # has no tree to walk.)
+        recallMaxExtra: 2
+
+        # 会话日志召回：pre-step 时用当前用户消息去查本会话的事件日志，把相关原文片段
+        # 注入到本次请求里（临时消息，不进 surface、不落盘、不参与折叠）。
+        # 默认 false：检索服务 `sessionQuery` 只在本体挂了 `dsh-session-query-sqlite` 时
+        # 才存在，而本 build 的 cordis 没有可选注入，所以运行期用 ctx.get(name,false)
+        # 探测；服务缺失时静默跳过。开启后 memory_stats 会多出 recallPublished/recallEvents
+        # 两个计数——两者都为 0 说明后端没起来或 query 没命中。
+        sessionRecallEnabled: true
+
+        # v6 memory_save: 直接、不依赖折叠地写一条事实进 LTM（模型随时可记）。
+        # 写入走 mergeLtm + diffForWrite，和 promote 同一条写路径；id 是内容哈希，所以
+        # 手动保存和之后自动 promote 同一段文字会合并成一条记录，不会重复。
+        saveEnabled: true
+        # 未指定 weight 时用的默认权重（高于 promote 阈值 0.4，保证可召回；不 pin）。
+        saveWeight: 0.8
+
+        # Log each fold decision to the plugin logger.
+        verbose: false
