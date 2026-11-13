@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+（暂无待发布变更）
+
+## [0.3.0] - 2026-11-13
+
+> 本段收口 v11 / v12 功能与修复，以及发布工程收尾（CI 工作流、打包卫生、版本号对齐）。详细条目见下方各小节。
+
 ### Added — CI 工作流（GitHub Actions）
 
 - **新增 `.github/workflows/test.yml`**：push / PR 到 `main` 及手动触发时，在 `ubuntu-latest` 上以 Node **22 与 24** 双版本跑 `npm test`（矩阵，`fail-fast: false`）。
@@ -11,15 +17,11 @@
 - **跳过是设计行为，不是失败**：`test/ltm-domain.test.js` 有意借宿主 profile 的真实 `zod` 与 `@deepseek-ai/dsh-storage-domain` 做契约验证；CI 上无 DSH profile，该文件 4 条会自动 skip（`t.skip`），其余照跑。**离线实测**：在无 `~/.dsh` 的空 HOME 下 `npm test` = 429 项 / **425 通过 / 0 失败 / 4 跳过**，**退出码 0**，与 GitHub runner 预期一致。
 - README 顶部加 CI 徽章，直观反映 `main` 的健康状态。
 
-### Changed — 发布工程收尾（不发版，仅整备）
+### Changed — 发布工程收尾
 
 - **发布包剔除备份文件**：`files` 白名单含 `lib/`，npm 规定白名单内无法用 `.npmignore` 排除，故 `lib/` 下三个 `.bak-v11`（`client.js.bak-v11` / `index.js.bak-v11` / `ltm-view.js.bak-v11`，合计 120KB）会被打进 tarball。已移出 `lib/` 至仓库根 `_archive/`（代码无任何引用）。`npm pack --dry-run`：**32 文件 / 193KB → 29 文件 / 156KB**，包内 0 个备份文件。
 - **补发布卫生文件**：新增 `.npmignore`（排除 `*.bak*`/`src/`/`test/`/配置等，仅保留 `README.md`、`CHANGELOG.md`）与 `.gitignore`（排除 `node_modules/`、备份、构建缓存）。
 - **版本号对齐**：`package.json` `0.2.0` → `0.3.0`，与本轮 v11→v12 的功能增量对应（此前版本号长期滞后于实际能力）。
-
-## [0.3.0] - 2026-11-13
-
-> 本段收口此前积压在 `[Unreleased]` 的全部 v11 / v12 功能与修复；详细条目见下方各小节。
 
 ### Fixed — 单元测试误读真实自我认知文件（测试隔离缺失，非产品缺陷）
 
